@@ -8,7 +8,7 @@ jobs:
   build:
     strategy:
       matrix:
-        arch: [ "arm32", "aarch64", "x86_64"]
+        arch: [ "arm32", "aarch64" ]
       fail-fast: false
 
     name: "Build for ${{matrix.arch}}"
@@ -18,16 +18,25 @@ jobs:
     steps:        
       - uses: actions/checkout@v2
 
-      - name: Build
+      - name: Install build dependencies
         run: |
           sudo apt update
           sudo apt install -y meson libxrandr-dev libxxf86vm-dev libxcb-*-dev libx11-xcb-dev libxfixes-dev libdrm-dev libx11-dev
           pip3 install mako
           export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk-bundle"
-          envsubst <android-${{matrix.arch}} >build-crossfile
+
+
+      - name: Build
+        run: |    
+          envsubst <android-${{matrix.arch}} > build-crossfile
+
           git clone --depth 1 https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
-          git apply --reject --whitespace=fix ../mesa-zink.diff || echo "git apply failed"
+          git apply --reject --whitespace=fix ../mesa-zink.diff || {
+            echo "git apply failed"
+            exit 1
+          }
+
           meson setup "build-android" \
             --prefix=/tmp/zink \
             --cross-file "../build-crossfile" \
@@ -46,6 +55,7 @@ jobs:
             -Dshared-glapi=false \
             -Dandroid-libbacktrace=disabled \
             -Dbuildtype=release
+
           ninja -C "build-android" install
       - name: Upload libraries
         uses: actions/upload-artifact@v2
